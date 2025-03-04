@@ -1,5 +1,6 @@
 .venv
 data
 *pycache*
-*pytest*
+*cache*
 .env
+airflow

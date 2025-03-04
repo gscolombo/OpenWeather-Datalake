@@ -1,8 +1,7 @@
 import os
 import pytest
-from data_ingestion import get_api_url, save_data
 from dotenv import load_dotenv
-from datetime import datetime
+from bronze.raw_data_ingestion import get_api_url, request_data, save_data
 
 load_dotenv()
 key = os.getenv("API_KEY")
@@ -31,26 +30,26 @@ def fake_data_stringfied():
 
 @pytest.fixture
 def test_dir(tmp_path):
-    return f"{tmp_path}{os.sep}data{os.sep}weather{os.sep}test_state"
+    return f"{tmp_path}{os.sep}data{os.sep}weather{os.sep}brasilia"
 
-@pytest.fixture
-def test_filename():
-    now = datetime.now().strftime("%Y%m%d_$H%M%S")
-    return f"test_state_weather_{now}.json"
 
 class TestDataIngestion:
     def test_get_api_url_raise(self, non_registered_state):
         with pytest.raises(KeyError):
-            get_api_url(non_registered_state)
+            request_data(non_registered_state)
         
     def test_get_api_url_return(self, api_url_for_brasilia):
         assert api_url_for_brasilia == get_api_url("brasilia")
 
-    def test_save_data(self, test_dir, test_filename, fake_data, fake_data_stringfied, tmp_path):        
-        save_data("test_state", fake_data, tmp_path)
-        
+    def test_save_data(self, test_dir, fake_data, fake_data_stringfied, tmp_path):
+        save_data(fake_data, state="brasilia", root=tmp_path)
         assert os.path.exists(test_dir)
-        with open(test_dir + os.sep + test_filename, "r") as f:
+        
+        files = os.listdir(test_dir)
+        assert len(files) > 0
+        
+        file_name = files[-1]
+        with open(test_dir + os.sep + file_name, "r") as f:
             assert f.read() == fake_data_stringfied
         
         
