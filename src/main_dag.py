@@ -7,7 +7,7 @@ from bronze.pipelines.data_ingestion_dag import raw
 
 with DAG(
     dag_id="main",
-    dag_display_name="OpenWeather Current Weather Data Lakehouse",
+    dag_display_name="Brazil Weather Data Lakehouse",
     default_args=default_args,
     schedule=timedelta(minutes=10),
     start_date=datetime.today()
