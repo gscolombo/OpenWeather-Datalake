@@ -30,7 +30,7 @@ def fake_data_stringfied():
 
 @pytest.fixture
 def test_dir(tmp_path):
-    return f"{tmp_path}{os.sep}data{os.sep}weather{os.sep}brasilia"
+    return f"{tmp_path}{os.sep}data{os.sep}weather{os.sep}Brasilia"
 
 
 class TestDataIngestion:
@@ -39,10 +39,10 @@ class TestDataIngestion:
             request_data(non_registered_state)
         
     def test_get_api_url_return(self, api_url_for_brasilia):
-        assert api_url_for_brasilia == get_api_url("brasilia")
+        assert api_url_for_brasilia == get_api_url("Brasilia")
 
     def test_save_data(self, test_dir, fake_data, fake_data_stringfied, tmp_path):
-        save_data(fake_data, state="brasilia", root=tmp_path)
+        save_data(fake_data, capital="Brasilia", root=tmp_path)
         assert os.path.exists(test_dir)
         
         files = os.listdir(test_dir)
