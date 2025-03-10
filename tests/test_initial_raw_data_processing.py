@@ -15,17 +15,20 @@ schema = expected_data_schema
 
 
 @pytest.fixture
-def raw_data_processor():
-    return RawDataProcessor()
+def sample_data_path(tmp_path):
+    return f"{tmp_path}{os.sep}data{os.sep}bronze{os.sep}weather{os.sep}Manaus"
 
 
 class TestInitialRawDataProcessing:
 
-    def test_climate_data_gathering(self, raw_data_processor, sample, tmp_path, schema):
-        with open(f"{tmp_path}/sample_data.json", "w") as json:
+    def test_climate_data_gathering(self, sample_data_path, tmp_path, sample, schema):
+        os.makedirs(sample_data_path)
+        with open(f"{sample_data_path}/sample_data.json", "w") as json:
             dump(sample, json)
 
-        sample_raw_data_df = raw_data_processor.read_json(str(tmp_path))
+        raw_data_processor = RawDataProcessor(tmp_path)
+
+        sample_raw_data_df = raw_data_processor.read_json(str(sample_data_path))
 
         transformed_raw_data_df = raw_data_processor.get_climate_data_per_capital(
             sample_raw_data_df, "Manaus"
@@ -54,5 +57,4 @@ class TestInitialRawDataProcessing:
             expected_data, schema=schema
         )
 
-        expected_df.show()
         assertDataFrameEqual(transformed_raw_data_df, expected_df)
