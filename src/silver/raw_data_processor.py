@@ -15,7 +15,7 @@ class RawDataProcessor:
             "Raw Data Initial Processing"
         ).getOrCreate()
 
-        self.path = f"{ROOT_PATH}/data/weather"
+        self.path = f"{ROOT_PATH}/data/bronze/weather"
         self.capitals = os.listdir(self.path)
 
     def read_json(self, path: str):
@@ -56,7 +56,7 @@ class RawDataProcessor:
         return reduce(lambda a, b: a.union(b), climate_data)
 
     def save_climate_data_to_parquet(self):
-        save_path = f"{ROOT_PATH}/data/climate"
+        save_path = f"{ROOT_PATH}/data/silver/climate"
         if not os.path.exists(save_path):
             os.mkdir(save_path)
             os.mkdir(save_path + "/checkpoint")
