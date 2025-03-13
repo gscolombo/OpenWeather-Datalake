@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  clusterIP: None
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    metadata_db: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: postgres
+  selector:
+    matchLabels:
+      metadata_db: postgres
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        metadata_db: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:14
+        env:
+          - name: POSTGRES_DB
+            value: "metadata"
+          - name: POSTGRES_USER
+            value: "airflow"
+          - name: POSTGRES_PASSWORD
+            value: "airflow"
+        ports:
+          - containerPort: 5432
+        volumeMounts:
+          - name: airflow-metadata
+            mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: airflow-metadata
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 10Gi
+      
+      
