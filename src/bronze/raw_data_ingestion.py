@@ -34,11 +34,9 @@ def request_data(capital: str):
     return {"status_code": res.status_code, "data": res.json()}
 
 
-def save_data(data: dict, capital: str, root: str = "."):
+def save_data(data: dict, capital: str, root: str = ""):
     now = datetime.now().strftime("%Y%m%d_%H%M%S")
-    save_path = Path(
-        f"{root}{os.sep}data{os.sep}bronze{os.sep}weather{os.sep}{capital}"
-    )
+    save_path = Path(root, "data", "bronze", "weather", capital)
 
     if not save_path.exists():
         save_path.mkdir(parents=True, exist_ok=True)
