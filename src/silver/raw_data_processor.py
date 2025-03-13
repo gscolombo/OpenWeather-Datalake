@@ -4,9 +4,13 @@ from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import lit, from_unixtime
 from pyspark.sql.streaming.query import StreamingQuery
 from functools import reduce
+from dotenv import load_dotenv
+
 from .raw_data_schema import schema
 
-ROOT_PATH = os.path.abspath(__file__).split("/src")[0]
+load_dotenv
+
+ROOT_PATH = os.getenv("ROOT_PATH")
 
 
 class RawDataProcessor:
