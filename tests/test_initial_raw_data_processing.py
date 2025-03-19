@@ -1,60 +1,73 @@
 import os
+from pathlib import Path
 
 os.environ["PYARROW_IGNORE_TIMEZONE"] = "1"  # to get rid of warning message
 
 import pytest
 from pyspark.testing.utils import assertDataFrameEqual
-from fixtures import sample_raw_data, expected_data_schema
+from fixtures import *
 
 from json import dump
 
 from silver.raw_data_processor import RawDataProcessor
 
-sample = sample_raw_data
-schema = expected_data_schema
-
 
 @pytest.fixture
-def sample_data_path(tmp_path):
-    return f"{tmp_path}{os.sep}data{os.sep}bronze{os.sep}weather{os.sep}Manaus"
+def processor(tmp_path, sample_raw_data_Manaus, sample_raw_data_Brasilia):
+    ma_path = Path(tmp_path, "bronze", "weather", "Manaus")
+    ma_path.mkdir(parents=True)
+    with open(f"{ma_path}/sample_data.json", "w") as json:
+        dump(sample_raw_data_Manaus, json)
+
+    bsb_path = Path(tmp_path, "bronze", "weather", "Brasilia")
+    bsb_path.mkdir(parents=True)
+    with open(f"{bsb_path}/sample_data.json", "w") as json:
+        dump(sample_raw_data_Brasilia, json)
+
+    return RawDataProcessor(tmp_path, streaming=False)
 
 
 class TestInitialRawDataProcessing:
 
-    def test_climate_data_gathering(self, sample_data_path, tmp_path, sample, schema):
-        os.makedirs(sample_data_path)
-        with open(f"{sample_data_path}/sample_data.json", "w") as json:
-            dump(sample, json)
+    def test_climate_data_gathering(
+        self,
+        processor: RawDataProcessor,
+        expected_climate_data,
+        expected_climate_data_schema,
+    ):
 
-        raw_data_processor = RawDataProcessor(tmp_path)
+        transformed_raw_data_df = processor.gather_data("climate")
 
-        sample_raw_data_df = raw_data_processor.read_json(str(sample_data_path))
-
-        transformed_raw_data_df = raw_data_processor.get_climate_data_per_capital(
-            sample_raw_data_df, "Manaus"
+        expected_df = processor.spark.createDataFrame(
+            expected_climate_data, schema=expected_climate_data_schema
         )
 
-        expected_data = [
-            {
-                "dt": "2025-03-06 08:58:13",
-                "sunrise": "2025-03-06 07:06:44",
-                "sunset": "2025-03-06 19:15:50",
-                "temp": 24.25,
-                "feels_like": 24.9,
-                "pressure": 1011,
-                "humidity": 83,
-                "dew_point": 21.18,
-                "uvi": 1.09,
-                "clouds": 20,
-                "visibility": 10000,
-                "wind_speed": 4.12,
-                "wind_deg": 90,
-                "capital_name": "Manaus",
-            }
-        ]
+        assertDataFrameEqual(transformed_raw_data_df, expected_df)
 
-        expected_df = raw_data_processor.spark.createDataFrame(
-            expected_data, schema=schema
+    def test_weather_data_gathering(
+        self,
+        processor: RawDataProcessor,
+        expected_weather_data,
+        expected_weather_data_schema,
+    ):
+        transformed_raw_data_df = processor.gather_data("weather")
+
+        expected_df = processor.spark.createDataFrame(
+            expected_weather_data, schema=expected_weather_data_schema
+        )
+
+        assertDataFrameEqual(transformed_raw_data_df, expected_df)
+
+    def test_alert_data_gathering(
+        self,
+        processor: RawDataProcessor,
+        expected_alert_data,
+        expected_alert_data_schema,
+    ):
+        transformed_raw_data_df = processor.gather_data("alert")
+
+        expected_df = processor.spark.createDataFrame(
+            expected_alert_data, schema=expected_alert_data_schema
         )
 
         assertDataFrameEqual(transformed_raw_data_df, expected_df)

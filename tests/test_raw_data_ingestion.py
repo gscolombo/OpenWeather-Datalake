@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 from bronze.raw_data_ingestion import get_api_url, request_data, save_data
@@ -31,7 +32,7 @@ def fake_data_stringfied():
 
 @pytest.fixture
 def test_dir(tmp_path):
-    return f"{tmp_path}{os.sep}data{os.sep}bronze{os.sep}weather{os.sep}Brasilia"
+    return Path(tmp_path, "bronze", "weather", "Brasilia")
 
 
 class TestDataIngestion:
@@ -50,5 +51,5 @@ class TestDataIngestion:
         assert len(files) > 0
 
         file_name = files[-1]
-        with open(test_dir + os.sep + file_name, "r") as f:
+        with open(test_dir.joinpath(file_name), "r") as f:
             assert f.read() == fake_data_stringfied
