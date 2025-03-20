@@ -14,13 +14,16 @@ class RawDataProcessor:
     spark: SparkSession
 
     def __init__(
-        self, root: str, configs: list[tuple[str, str]] = None, streaming=True
+        self,
+        root: str,
+        capitals: list[str],
+        configs: list[tuple[str, str]] = None,
+        streaming=True,
     ):
         self.streaming = streaming
         self.root = root
         self.raw_data_path = Path(root, "bronze", "weather")
-        self.capitals = os.listdir(self.raw_data_path)
-        assert os.path.exists(self.raw_data_path) and len(self.capitals) > 0
+        self.capitals = capitals
 
         print("Configuring Spark session builder...")
         self.builder = SparkSession.builder.appName("Raw Data Initial Processing")
@@ -92,7 +95,6 @@ class RawDataProcessor:
         )
 
     def get_alert_data_per_capital(self, df: DataFrame, capital: str):
-
         return (
             df.select(["lat", "lon", "current.dt", explode("alerts").alias("alerts")])
             .select(
@@ -112,39 +114,31 @@ class RawDataProcessor:
             .transform(self.uts_to_dt, ["dt", "start", "end"])
         )
 
-    def gather_data(self, set: Literal["climate", "weather", "alert"]):
+    def gather_data(self, dataset: Literal["climate", "weather", "alert"]):
         fn = {
             "climate": self.get_climate_data_per_capital,
             "weather": self.get_weather_data_per_capital,
             "alert": self.get_alert_data_per_capital,
         }
 
-        print(f"Gathering {set} data...")
+        print(f"Gathering {dataset} data...")
         data_per_capital = [
-            fn[set](self.raw_data[capital], capital) for capital in self.raw_data
+            fn[dataset](self.raw_data[capital], capital) for capital in self.raw_data
         ]
 
         return reduce(lambda a, b: a.union(b), data_per_capital)
 
-    def write_stream_as_parquet(
-        self, data: DataFrame, checkpoint_loc: str, save_path: str
+    def save_data_stream_to_parquet(
+        self,
+        save_path: str,
+        checkpoint_path: str,
+        dataset: Literal["climate", "weather", "alert"],
     ) -> StreamingQuery:
+        data = self.gather_data(dataset)
+
         return (
             data.writeStream.trigger(availableNow=True)
             .format("parquet")
-            .option("checkpointLocation", checkpoint_loc)
+            .option("checkpointLocation", checkpoint_path)
             .start(save_path, outputMode="append")
-        )
-
-    def save_climate_data_to_parquet(self) -> StreamingQuery:
-        save_path = Path(self.root, "silver", "climate")
-        checkpoint = save_path.joinpath("checkpoint")
-        if not save_path.exists():
-            save_path.mkdir(parents=True, exist_ok=True)
-            checkpoint.mkdir()
-
-        climate_data = self.get_climate_data()
-
-        return self.write_stream_as_parquet(
-            climate_data, checkpoint.as_posix(), save_path.as_posix()
         )

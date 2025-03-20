@@ -24,7 +24,7 @@ def processor(tmp_path, sample_raw_data_Manaus, sample_raw_data_Brasilia):
     with open(f"{bsb_path}/sample_data.json", "w") as json:
         dump(sample_raw_data_Brasilia, json)
 
-    return RawDataProcessor(tmp_path, streaming=False)
+    return RawDataProcessor(tmp_path, streaming=False, capitals=["Manaus", "Brasilia"])
 
 
 class TestInitialRawDataProcessing:
