@@ -30,6 +30,6 @@ def raw():
                 print(error)
             else:
                 print(f"Saving weather data for {capital}")
-                save_data(data, capital)
+                save_data(data, capital, "datalake")
 
     save_data_on_success(request_weather_data())

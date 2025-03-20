@@ -1,0 +1,51 @@
+x-airflow: &airflow
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@metadata_db:5432/airflow_metadata
+    AIRFLOW__WEBSERVER__SECRET_KEY: AirflowSecretKey
+  depends_on:
+    postgres:
+      condition: service_healthy
+  volumes:
+    - ./src:/opt/airflow/dags
+    - ./scripts:/scripts
+    - ./datalake:/opt/airflow/dags/datalake
+
+
+services:
+  postgres:
+    image: postgres:14
+    restart: always
+    container_name: metadata_db
+    environment:  
+      POSTGRES_DB: airflow_metadata
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+    volumes:
+      - airflow_metadata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 1s
+      timeout: 5s
+      retries: 10
+
+  airflow-webserver:
+    image: apache/airflow:2.10.5-python3.10
+    ports:
+      - 8080:8080
+    depends_on:
+     - postgres
+    entrypoint: /scripts/airflow_webserver_init.sh
+    <<: *airflow
+
+  
+  airflow-scheduler:
+    build: .
+    depends_on:
+     - postgres
+    entrypoint: /scripts/airflow_scheduler_init.sh
+    env_file: .env
+    <<: *airflow
+
+volumes:
+  airflow_metadata:

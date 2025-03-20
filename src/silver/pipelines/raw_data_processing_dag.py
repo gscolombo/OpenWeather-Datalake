@@ -1,7 +1,36 @@
+import os
+from pathlib import Path
+from typing import Literal
 from airflow.decorators import task, task_group
 
 from silver.raw_data_processor import RawDataProcessor
-from silver.raw_data_schema import schema
+
+DATALAKE_BASE_PATH = Path("datalake", "silver")
+
+
+def aggregate_data(dataset: Literal["climate", "weather", "alert"]):
+    raw_data_path = Path("datalake", "bronze", "weather")
+    if not os.path.exists("./datalake/bronze/weather"):
+        raise FileNotFoundError("Raw data not stored.")
+
+    capitals = os.listdir(raw_data_path)
+
+    save_path = DATALAKE_BASE_PATH.joinpath(dataset)
+    save_path.mkdir(parents=True, exist_ok=True)
+
+    save_path_cp = save_path.joinpath("checkpoint")
+
+    processor = RawDataProcessor(raw_data_path, capitals)
+    print(f"Saving {dataset} data as parquet to datalake..")
+    q = processor.save_data_stream_to_parquet(
+        save_path.as_posix(), save_path_cp.as_posix(), dataset
+    )
+    while not q.awaitTermination(5):
+        status_message = q.status["message"]
+        print(status_message)
+        continue
+
+    print(f"{dataset.capitalize()} data stored.")
 
 
 @task_group(group_id="Silver", ui_color="#c0c0c0", ui_fgcolor="#c0c0c0")
@@ -12,17 +41,16 @@ def base_data_processing():
 
         @task()
         def aggregate_climate_data():
-            processor = RawDataProcessor()
+            aggregate_data("climate")
 
-            q = processor.save_climate_data_to_parquet()
-            print("Saving climate data as parquet to datalake..")
-            while not q.awaitTermination(1):
-                status_message = q.status["message"]
-                print(status_message)
-                continue
+        @task
+        def aggregate_weather_data():
+            aggregate_data("weather")
 
-            print("Climate data stored.")
+        @task
+        def aggregate_alert_data():
+            aggregate_data("alert")
 
-        [aggregate_climate_data()]
+        [aggregate_climate_data(), aggregate_weather_data(), aggregate_alert_data()]
 
     raw_data_processing()

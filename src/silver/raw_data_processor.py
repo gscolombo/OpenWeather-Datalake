@@ -1,5 +1,3 @@
-import os
-from pathlib import Path
 from typing import Literal
 
 from pyspark.sql import SparkSession, DataFrame
@@ -15,14 +13,13 @@ class RawDataProcessor:
 
     def __init__(
         self,
-        root: str,
+        raw_data_path: str,
         capitals: list[str],
         configs: list[tuple[str, str]] = None,
         streaming=True,
     ):
         self.streaming = streaming
-        self.root = root
-        self.raw_data_path = Path(root, "bronze", "weather")
+        self.raw_data_path = raw_data_path
         self.capitals = capitals
 
         print("Configuring Spark session builder...")
