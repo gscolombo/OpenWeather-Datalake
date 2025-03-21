@@ -14,17 +14,21 @@ from silver.raw_data_processor import RawDataProcessor
 
 @pytest.fixture
 def processor(tmp_path, sample_raw_data_Manaus, sample_raw_data_Brasilia):
-    ma_path = Path(tmp_path, "bronze", "weather", "Manaus")
+    raw_data_path = Path(tmp_path, "bronze", "weather")
+
+    ma_path = raw_data_path.joinpath("Manaus")
     ma_path.mkdir(parents=True)
     with open(f"{ma_path}/sample_data.json", "w") as json:
         dump(sample_raw_data_Manaus, json)
 
-    bsb_path = Path(tmp_path, "bronze", "weather", "Brasilia")
+    bsb_path = raw_data_path.joinpath("Brasilia")
     bsb_path.mkdir(parents=True)
     with open(f"{bsb_path}/sample_data.json", "w") as json:
         dump(sample_raw_data_Brasilia, json)
 
-    return RawDataProcessor(tmp_path, streaming=False, capitals=["Manaus", "Brasilia"])
+    return RawDataProcessor(
+        raw_data_path, streaming=False, capitals=["Manaus", "Brasilia"]
+    )
 
 
 class TestInitialRawDataProcessing:
@@ -40,7 +44,7 @@ class TestInitialRawDataProcessing:
 
         expected_df = processor.spark.createDataFrame(
             expected_climate_data, schema=expected_climate_data_schema
-        )
+        ).fillna(0.0)
 
         assertDataFrameEqual(transformed_raw_data_df, expected_df)
 

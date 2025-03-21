@@ -113,8 +113,6 @@ def sample_raw_data_Brasilia():
 def expected_climate_data_schema():
     return StructType(
         [
-            StructField("lat", DoubleType(), True),
-            StructField("lon", DoubleType(), True),
             StructField("clouds", LongType(), True),
             StructField("dew_point", DoubleType(), True),
             StructField("dt", StringType(), True),
@@ -140,8 +138,6 @@ def expected_climate_data_schema():
 def expected_weather_data_schema():
     return StructType(
         [
-            StructField("lat", DoubleType(), True),
-            StructField("lon", DoubleType(), True),
             StructField("dt", StringType(), True),
             StructField("id", LongType(), True),
             StructField("main", StringType(), True),
@@ -156,8 +152,6 @@ def expected_weather_data_schema():
 def expected_alert_data_schema():
     return StructType(
         [
-            StructField("lat", DoubleType(), True),
-            StructField("lon", DoubleType(), True),
             StructField("dt", StringType(), True),
             StructField("sender_name", StringType(), True),
             StructField("event", StringType(), True),
@@ -174,8 +168,6 @@ def expected_alert_data_schema():
 def expected_climate_data():
     return [
         {
-            "lat": -3.1316,
-            "lon": -59.9825,
             "dt": "2025-03-06 08:58:13",
             "sunrise": "2025-03-06 07:06:44",
             "sunset": "2025-03-06 19:15:50",
@@ -192,8 +184,6 @@ def expected_climate_data():
             "capital_name": "Manaus",
         },
         {
-            "lat": -15.7934,
-            "lon": -47.8823,
             "dt": "2025-03-18 21:26:00",
             "sunrise": "2025-03-18 06:15:09",
             "sunset": "2025-03-18 18:23:56",
@@ -207,9 +197,9 @@ def expected_climate_data():
             "visibility": 10000,
             "wind_speed": 2.06,
             "wind_deg": 200,
-            "wind_gust": None,
+            "wind_gust": 0.0,
             "rain_1h": 0.13,
-            "snow_1h": None,
+            "snow_1h": 0.0,
             "capital_name": "Brasilia",
         },
     ]
@@ -219,8 +209,6 @@ def expected_climate_data():
 def expected_weather_data():
     return [
         {
-            "lat": -3.1316,
-            "lon": -59.9825,
             "dt": "2025-03-06 08:58:13",
             "id": 801,
             "main": "Clouds",
@@ -229,8 +217,6 @@ def expected_weather_data():
             "capital_name": "Manaus",
         },
         {
-            "lat": -15.7934,
-            "lon": -47.8823,
             "dt": "2025-03-18 21:26:00",
             "id": 500,
             "main": "Rain",
@@ -245,8 +231,6 @@ def expected_weather_data():
 def expected_alert_data():
     return [
         {
-            "lat": -3.1316,
-            "lon": -59.9825,
             "dt": "2025-03-06 08:58:13",
             "sender_name": "Instituto Nacional de Meteorologia",
             "event": "Chuvas Intensas",
@@ -257,8 +241,6 @@ def expected_alert_data():
             "capital_name": "Manaus",
         },
         {
-            "lat": -3.1316,
-            "lon": -59.9825,
             "dt": "2025-03-06 08:58:13",
             "sender_name": "Instituto Nacional de Meteorologia",
             "event": "Chuvas Muito Intensas",
@@ -269,8 +251,6 @@ def expected_alert_data():
             "capital_name": "Manaus",
         },
         {
-            "lat": -15.7934,
-            "lon": -47.8823,
             "dt": "2025-03-18 21:26:00",
             "sender_name": "Instituto Nacional de Meteorologia",
             "event": "Baixa Umidade",
@@ -281,8 +261,6 @@ def expected_alert_data():
             "capital_name": "Brasilia",
         },
         {
-            "lat": -15.7934,
-            "lon": -47.8823,
             "dt": "2025-03-18 21:26:00",
             "sender_name": "Instituto Nacional de Meteorologia",
             "event": "Seca Extrema",

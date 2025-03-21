@@ -1,4 +1,5 @@
 from typing import Literal
+from pathlib import Path
 
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import lit, from_unixtime, concat_ws, explode
@@ -13,13 +14,15 @@ class RawDataProcessor:
 
     def __init__(
         self,
-        raw_data_path: str,
+        raw_data_path: str | Path,
         capitals: list[str],
         configs: list[tuple[str, str]] = None,
         streaming=True,
     ):
         self.streaming = streaming
-        self.raw_data_path = raw_data_path
+        self.raw_data_path = (
+            raw_data_path if type(raw_data_path) == "str" else raw_data_path.as_posix()
+        )
         self.capitals = capitals
 
         print("Configuring Spark session builder...")
@@ -60,7 +63,7 @@ class RawDataProcessor:
 
     def get_climate_data_per_capital(self, df: DataFrame, capital: str):
         return (
-            df.select(["lat", "lon", "current.*"])
+            df.select(["current.*"])
             .drop("weather")
             .select(["*", "rain.1h"])
             .withColumnRenamed("1h", "rain_1h")
@@ -70,13 +73,12 @@ class RawDataProcessor:
             .drop("snow")
             .withColumn("capital_name", lit(capital))
             .transform(self.uts_to_dt, ["dt", "sunrise", "sunset"])
+            .fillna(0.0)
         )
 
     def get_weather_data_per_capital(self, df: DataFrame, capital: str):
         return (
-            df.select(
-                ["lat", "lon", "current.dt", df.current.weather[0].alias("weather")]
-            )
+            df.select(["current.dt", df.current.weather[0].alias("weather")])
             .select(
                 [
                     "*",
@@ -93,7 +95,7 @@ class RawDataProcessor:
 
     def get_alert_data_per_capital(self, df: DataFrame, capital: str):
         return (
-            df.select(["lat", "lon", "current.dt", explode("alerts").alias("alerts")])
+            df.select(["current.dt", explode("alerts").alias("alerts")])
             .select(
                 [
                     "*",

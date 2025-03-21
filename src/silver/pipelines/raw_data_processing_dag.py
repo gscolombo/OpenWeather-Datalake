@@ -2,8 +2,10 @@ import os
 from pathlib import Path
 from typing import Literal
 from airflow.decorators import task, task_group
+from pyspark.sql import SparkSession
 
 from silver.raw_data_processor import RawDataProcessor
+
 
 DATALAKE_BASE_PATH = Path("datalake", "silver")
 
@@ -34,23 +36,22 @@ def aggregate_data(dataset: Literal["climate", "weather", "alert"]):
 
 
 @task_group(group_id="Silver", ui_color="#c0c0c0", ui_fgcolor="#c0c0c0")
-def base_data_processing():
+def raw_data_processing():
 
-    @task_group(group_id="Silver-I")
-    def raw_data_processing():
+    @task()
+    def aggregate_climate_data():
+        aggregate_data("climate")
 
-        @task()
-        def aggregate_climate_data():
-            aggregate_data("climate")
+    @task
+    def aggregate_weather_data():
+        aggregate_data("weather")
 
-        @task
-        def aggregate_weather_data():
-            aggregate_data("weather")
+    @task
+    def aggregate_alert_data():
+        aggregate_data("alert")
 
-        @task
-        def aggregate_alert_data():
-            aggregate_data("alert")
-
-        [aggregate_climate_data(), aggregate_weather_data(), aggregate_alert_data()]
-
-    raw_data_processing()
+    [
+        aggregate_climate_data(),
+        aggregate_weather_data(),
+        aggregate_alert_data(),
+    ]

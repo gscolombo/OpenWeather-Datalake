@@ -5,7 +5,7 @@ from bronze.raw_data_ingestion import request_data, save_data
 
 
 @task_group(group_id="Bronze", ui_color="#cd7f32", ui_fgcolor="#cd7f32")
-def raw():
+def raw_data_ingestion():
 
     @task()
     def request_weather_data():
