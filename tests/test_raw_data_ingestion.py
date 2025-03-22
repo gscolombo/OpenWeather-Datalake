@@ -2,7 +2,15 @@ import os
 from pathlib import Path
 import pytest
 from dotenv import load_dotenv
-from bronze.raw_data_ingestion import get_api_url, request_data, save_data
+from datetime import datetime
+from json import dumps
+
+from bronze.raw_data_ingestion import (
+    get_api_url,
+    request_data,
+    save_data,
+    update_ingestion_checkpoint,
+)
 
 load_dotenv()
 key = os.getenv("API_KEY")
@@ -32,7 +40,7 @@ def fake_data_stringfied():
 
 @pytest.fixture
 def test_dir(tmp_path):
-    return Path(tmp_path, "bronze", "weather", "Brasilia")
+    return Path(tmp_path, "bronze", "capital=Brasilia")
 
 
 class TestDataIngestion:
@@ -43,13 +51,31 @@ class TestDataIngestion:
     def test_get_api_url_return(self, api_url_for_brasilia):
         assert api_url_for_brasilia == get_api_url("Brasilia")
 
-    def test_save_data(self, test_dir, fake_data, fake_data_stringfied, tmp_path):
-        save_data(fake_data, capital="Brasilia", root=tmp_path)
+    def test_save_data(
+        self,
+        fake_data,
+        fake_data_stringfied,
+        tmp_path: Path,
+        test_dir: Path,
+    ):
+
+        save_data(fake_data, "Brasilia", tmp_path)
         assert os.path.exists(test_dir)
 
         files = os.listdir(test_dir)
         assert len(files) > 0
 
-        file_name = files[-1]
-        with open(test_dir.joinpath(file_name), "r") as f:
+        with open(test_dir.joinpath(files[-1]), "r") as f:
             assert f.read() == fake_data_stringfied
+
+    def test_checkpoint_creation(self, tmp_path: Path):
+        now = datetime.now().isoformat()
+
+        update_ingestion_checkpoint(now, tmp_path)
+
+        cp_path = Path(tmp_path, "checkpoints")
+        assert os.path.exists(cp_path)
+
+        cp = os.listdir(cp_path)[-1]
+        with open(cp_path.joinpath(cp), "r") as f:
+            assert f.read() == dumps({"last_ingestion_at": now})

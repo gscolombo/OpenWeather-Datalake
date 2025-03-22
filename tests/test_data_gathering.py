@@ -1,37 +1,62 @@
 import os
 from pathlib import Path
+from datetime import datetime
 
 os.environ["PYARROW_IGNORE_TIMEZONE"] = "1"  # to get rid of warning message
 
 import pytest
 from pyspark.testing.utils import assertDataFrameEqual
+from pyspark.sql.functions import col
 from fixtures import *
 
-from json import dump
 
+from bronze.raw_data_ingestion import save_data, update_ingestion_checkpoint
 from silver.raw_data_processor import RawDataProcessor
+from silver.raw_data_schema import schema
 
 
-@pytest.fixture
+@pytest.fixture()
+def raw_data_path(tmp_path):
+    return Path(tmp_path, "bronze")
+
+
+@pytest.fixture()
 def processor(tmp_path, sample_raw_data_Manaus, sample_raw_data_Brasilia):
-    raw_data_path = Path(tmp_path, "bronze", "weather")
+    save_data(sample_raw_data_Brasilia, "Brasilia", tmp_path)
+    save_data(sample_raw_data_Manaus, "Manaus", tmp_path)
 
-    ma_path = raw_data_path.joinpath("Manaus")
-    ma_path.mkdir(parents=True)
-    with open(f"{ma_path}/sample_data.json", "w") as json:
-        dump(sample_raw_data_Manaus, json)
-
-    bsb_path = raw_data_path.joinpath("Brasilia")
-    bsb_path.mkdir(parents=True)
-    with open(f"{bsb_path}/sample_data.json", "w") as json:
-        dump(sample_raw_data_Brasilia, json)
-
-    return RawDataProcessor(
-        raw_data_path, streaming=False, capitals=["Manaus", "Brasilia"]
-    )
+    return RawDataProcessor(tmp_path)
 
 
-class TestInitialRawDataProcessing:
+@pytest.fixture()
+def processor_with_cp(tmp_path, sample_raw_data_Brasilia, sample_raw_data_Manaus):
+    save_data(sample_raw_data_Manaus, "Manaus", tmp_path)
+
+    dt = datetime.fromtimestamp(sample_raw_data_Manaus[0]["current"]["dt"]).isoformat()
+    update_ingestion_checkpoint(dt, tmp_path)
+
+    save_data(sample_raw_data_Brasilia, "Brasilia", tmp_path)
+
+    return RawDataProcessor(tmp_path)
+
+
+class TestRawDataProcessing:
+
+    def test_raw_data_loading(self, processor: RawDataProcessor, raw_data_path):
+        expected_df = processor.spark.read.json(raw_data_path.as_posix(), schema=schema)
+
+        assertDataFrameEqual(processor.raw_data, expected_df)
+
+    def test_checkpoint_filtered_loading(
+        self,
+        processor_with_cp: RawDataProcessor,
+        raw_data_path,
+    ):
+        expected_df = processor_with_cp.spark.read.json(
+            str(raw_data_path), schema=schema
+        ).filter(col("capital") == "Brasilia")
+
+        assertDataFrameEqual(processor_with_cp.raw_data, expected_df)
 
     def test_climate_data_gathering(
         self,

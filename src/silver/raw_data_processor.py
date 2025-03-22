@@ -2,9 +2,8 @@ from typing import Literal
 from pathlib import Path
 
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import lit, from_unixtime, concat_ws, explode
-from pyspark.sql.streaming.query import StreamingQuery
-from functools import reduce
+from pyspark.sql.functions import col, from_unixtime, concat_ws, explode, date_trunc
+from json import load
 
 from .raw_data_schema import schema
 
@@ -14,56 +13,59 @@ class RawDataProcessor:
 
     def __init__(
         self,
-        raw_data_path: str | Path,
-        capitals: list[str],
+        base_path: Path,
         configs: list[tuple[str, str]] = None,
-        streaming=True,
     ):
-        self.streaming = streaming
-        self.raw_data_path = (
-            raw_data_path if type(raw_data_path) == "str" else raw_data_path.as_posix()
-        )
-        self.capitals = capitals
-
         print("Configuring Spark session builder...")
-        self.builder = SparkSession.builder.appName("Raw Data Initial Processing")
+        builder = SparkSession.builder.appName("Raw Data Initial Processing")
 
         if configs is not None:
             print("Applying custom configuration...")
             for key, value in configs:
-                self.builder.config(key, value)
+                builder.config(key, value)
 
         print("Starting Spark session...")
-        self.spark = self.builder.getOrCreate()
+        self.spark = builder.getOrCreate()
         print("Spark session started.")
 
-        self.raw_data = self.get_data_per_capital()
+        self.save_path = base_path.joinpath("silver")
+        self.raw_data_path = base_path.joinpath("bronze")
+        self.cp_path = base_path.joinpath("checkpoints")
 
-    def read_json(self, path: str):
-        return self.spark.read.json(path, schema=schema)
+        self.raw_data = self.get_raw_data()
 
-    def read_json_stream(self, path: str):
-        return self.spark.readStream.json(path, schema=schema)
+    def get_last_datetime(self) -> str | None:
+        ingestion_cp = self.cp_path.joinpath("ingestion_checkpoint.json")
 
-    def get_data_per_capital(self):
-        data = {}
+        if ingestion_cp.exists():
+            print("Checkpoint metadata found.")
+            print("Reading ingestion checkpoint...")
+            with open(ingestion_cp, "r") as cp:
+                last_dt = load(cp)["last_ingestion_at"]
+                print(f"Last ingestion was at {last_dt}.")
+                return last_dt
 
-        reader = self.read_json_stream if self.streaming else self.read_json
+        print("No checkpoint metadata found.")
 
-        for capital in self.capitals:
-            print(f"Reading data for {capital}...")
-            data[capital] = reader(f"{self.raw_data_path}/{capital}")
+    def get_raw_data(self):
+        print("Reading raw data...")
+        raw_data = self.spark.read.json(str(self.raw_data_path), schema=schema)
 
-        return data
+        last_dt = self.get_last_datetime()
+        if last_dt is not None:
+            print("Filtering out old data...")
+            raw_data = raw_data.filter(from_unixtime(col("current.dt")) > last_dt)
+
+        return raw_data
 
     def uts_to_dt(self, df: DataFrame, columns: list[str]):
         return df.withColumns(
             {colname: from_unixtime(colname).alias(colname) for colname in columns}
         )
 
-    def get_climate_data_per_capital(self, df: DataFrame, capital: str):
+    def get_climate_data(self):
         return (
-            df.select(["current.*"])
+            self.raw_data.select(["capital", "current.*"])
             .drop("weather")
             .select(["*", "rain.1h"])
             .withColumnRenamed("1h", "rain_1h")
@@ -71,14 +73,19 @@ class RawDataProcessor:
             .select(["*", "snow.1h"])
             .withColumnRenamed("1h", "snow_1h")
             .drop("snow")
-            .withColumn("capital_name", lit(capital))
             .transform(self.uts_to_dt, ["dt", "sunrise", "sunset"])
             .fillna(0.0)
         )
 
-    def get_weather_data_per_capital(self, df: DataFrame, capital: str):
+    def get_weather_data(self):
         return (
-            df.select(["current.dt", df.current.weather[0].alias("weather")])
+            self.raw_data.select(
+                [
+                    "capital",
+                    "current.dt",
+                    self.raw_data.current.weather[0].alias("weather"),
+                ]
+            )
             .select(
                 [
                     "*",
@@ -90,12 +97,13 @@ class RawDataProcessor:
             )
             .drop("weather")
             .transform(self.uts_to_dt, ["dt"])
-            .withColumn("capital_name", lit(capital))
         )
 
-    def get_alert_data_per_capital(self, df: DataFrame, capital: str):
+    def get_alert_data(self):
         return (
-            df.select(["current.dt", explode("alerts").alias("alerts")])
+            self.raw_data.select(
+                ["capital", "current.dt", explode("alerts").alias("alerts")]
+            )
             .select(
                 [
                     "*",
@@ -108,36 +116,29 @@ class RawDataProcessor:
                 ]
             )
             .drop("alerts")
-            .withColumn("capital_name", lit(capital))
             .withColumn("tags", concat_ws(" ", "tags"))
             .transform(self.uts_to_dt, ["dt", "start", "end"])
         )
 
-    def gather_data(self, dataset: Literal["climate", "weather", "alert"]):
+    def gather_data(
+        self,
+        dataset: Literal["climate", "weather", "alert"],
+    ) -> DataFrame:
         fn = {
-            "climate": self.get_climate_data_per_capital,
-            "weather": self.get_weather_data_per_capital,
-            "alert": self.get_alert_data_per_capital,
+            "climate": self.get_climate_data,
+            "weather": self.get_weather_data,
+            "alert": self.get_alert_data,
         }
 
-        print(f"Gathering {dataset} data...")
-        data_per_capital = [
-            fn[dataset](self.raw_data[capital], capital) for capital in self.raw_data
-        ]
+        return fn[dataset]()
 
-        return reduce(lambda a, b: a.union(b), data_per_capital)
-
-    def save_data_stream_to_parquet(
+    def save_data_as_parquet(
         self,
-        save_path: str,
-        checkpoint_path: str,
         dataset: Literal["climate", "weather", "alert"],
-    ) -> StreamingQuery:
+    ):
         data = self.gather_data(dataset)
 
-        return (
-            data.writeStream.trigger(availableNow=True)
-            .format("parquet")
-            .option("checkpointLocation", checkpoint_path)
-            .start(save_path, outputMode="append")
-        )
+        print(f"Saving {dataset} data...")
+        data.write.partitionBy(
+            dataset, "capital", date_trunc("day", "dt"), date_trunc("hour", "dt")
+        ).mode("append").parquet(str(self.save_path))
