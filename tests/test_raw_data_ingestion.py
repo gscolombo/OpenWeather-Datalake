@@ -2,14 +2,11 @@ import os
 from pathlib import Path
 import pytest
 from dotenv import load_dotenv
-from datetime import datetime
-from json import dumps
 
 from bronze.raw_data_ingestion import (
     get_api_url,
     request_data,
     save_data,
-    update_ingestion_checkpoint,
 )
 
 load_dotenv()
@@ -62,20 +59,9 @@ class TestDataIngestion:
         save_data(fake_data, "Brasilia", tmp_path)
         assert os.path.exists(test_dir)
 
-        files = os.listdir(test_dir)
-        assert len(files) > 0
+        dt_partition = os.listdir(test_dir)[-1]
+        assert len(dt_partition) > 0 and ("date=" in dt_partition)
 
-        with open(test_dir.joinpath(files[-1]), "r") as f:
+        file_path = os.listdir(test_dir.joinpath(dt_partition))[-1]
+        with open(test_dir.joinpath(dt_partition, file_path), "r") as f:
             assert f.read() == fake_data_stringfied
-
-    def test_checkpoint_creation(self, tmp_path: Path):
-        now = datetime.now().isoformat()
-
-        update_ingestion_checkpoint(now, tmp_path)
-
-        cp_path = Path(tmp_path, "checkpoints")
-        assert os.path.exists(cp_path)
-
-        cp = os.listdir(cp_path)[-1]
-        with open(cp_path.joinpath(cp), "r") as f:
-            assert f.read() == dumps({"last_ingestion_at": now})

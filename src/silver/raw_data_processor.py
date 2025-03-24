@@ -1,9 +1,18 @@
 from typing import Literal
 from pathlib import Path
+from datetime import datetime
 
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import col, from_unixtime, concat_ws, explode, date_trunc
-from json import load
+from pyspark.sql.functions import (
+    col,
+    from_unixtime,
+    concat_ws,
+    explode,
+    date_trunc,
+    to_date,
+    hour,
+)
+from json import load, dump
 
 from .raw_data_schema import schema
 
@@ -15,26 +24,31 @@ class RawDataProcessor:
         self,
         base_path: Path,
         configs: list[tuple[str, str]] = None,
+        spark_session: SparkSession = None,
     ):
-        print("Configuring Spark session builder...")
-        builder = SparkSession.builder.appName("Raw Data Initial Processing")
+        self.configs = configs
 
-        if configs is not None:
-            print("Applying custom configuration...")
-            for key, value in configs:
-                builder.config(key, value)
+        if spark_session is None:
+            print("Configuring Spark session builder...")
+            builder = SparkSession.builder.appName("Raw Data Initial Processing")
 
-        print("Starting Spark session...")
-        self.spark = builder.getOrCreate()
-        print("Spark session started.")
+            if configs is not None:
+                print("Applying custom configuration...")
+                for key, value in configs:
+                    builder.config(key, value)
 
+            print("Starting Spark session...")
+            self.spark = builder.getOrCreate()
+            print("Spark session started.")
+        else:
+            self.spark = spark_session
+
+        self.base_path = base_path
         self.save_path = base_path.joinpath("silver")
         self.raw_data_path = base_path.joinpath("bronze")
         self.cp_path = base_path.joinpath("checkpoints")
 
-        self.raw_data = self.get_raw_data()
-
-    def get_last_datetime(self) -> str | None:
+    def get_last_datetime(self) -> datetime | None:
         ingestion_cp = self.cp_path.joinpath("ingestion_checkpoint.json")
 
         if ingestion_cp.exists():
@@ -43,13 +57,15 @@ class RawDataProcessor:
             with open(ingestion_cp, "r") as cp:
                 last_dt = load(cp)["last_ingestion_at"]
                 print(f"Last ingestion was at {last_dt}.")
-                return last_dt
+                return datetime.fromisoformat(last_dt)
 
         print("No checkpoint metadata found.")
 
     def get_raw_data(self):
         print("Reading raw data...")
-        raw_data = self.spark.read.json(str(self.raw_data_path), schema=schema)
+        raw_data = self.spark.read.json(str(self.raw_data_path), schema=schema).filter(
+            col("date") == datetime.today().date()
+        )
 
         last_dt = self.get_last_datetime()
         if last_dt is not None:
@@ -63,9 +79,9 @@ class RawDataProcessor:
             {colname: from_unixtime(colname).alias(colname) for colname in columns}
         )
 
-    def get_climate_data(self):
-        return (
-            self.raw_data.select(["capital", "current.*"])
+    def get_climate_data(self, data: DataFrame):
+        climate_data = (
+            data.select(["capital", "current.*"])
             .drop("weather")
             .select(["*", "rain.1h"])
             .withColumnRenamed("1h", "rain_1h")
@@ -77,13 +93,15 @@ class RawDataProcessor:
             .fillna(0.0)
         )
 
-    def get_weather_data(self):
-        return (
-            self.raw_data.select(
+        self.save_data_as_parquet(climate_data, "climate")
+
+    def get_weather_data(self, data: DataFrame):
+        weather_data = (
+            data.select(
                 [
                     "capital",
                     "current.dt",
-                    self.raw_data.current.weather[0].alias("weather"),
+                    data.current.weather[0].alias("weather"),
                 ]
             )
             .select(
@@ -99,11 +117,11 @@ class RawDataProcessor:
             .transform(self.uts_to_dt, ["dt"])
         )
 
-    def get_alert_data(self):
-        return (
-            self.raw_data.select(
-                ["capital", "current.dt", explode("alerts").alias("alerts")]
-            )
+        self.save_data_as_parquet(weather_data, "weather")
+
+    def get_alert_data(self, data: DataFrame):
+        alert_data = (
+            data.select(["capital", "current.dt", explode("alerts").alias("alerts")])
             .select(
                 [
                     "*",
@@ -120,25 +138,39 @@ class RawDataProcessor:
             .transform(self.uts_to_dt, ["dt", "start", "end"])
         )
 
-    def gather_data(
-        self,
-        dataset: Literal["climate", "weather", "alert"],
-    ) -> DataFrame:
-        fn = {
-            "climate": self.get_climate_data,
-            "weather": self.get_weather_data,
-            "alert": self.get_alert_data,
-        }
-
-        return fn[dataset]()
+        self.save_data_as_parquet(alert_data, "alert")
 
     def save_data_as_parquet(
         self,
+        data: DataFrame,
         dataset: Literal["climate", "weather", "alert"],
     ):
-        data = self.gather_data(dataset)
-
         print(f"Saving {dataset} data...")
-        data.write.partitionBy(
-            dataset, "capital", date_trunc("day", "dt"), date_trunc("hour", "dt")
-        ).mode("append").parquet(str(self.save_path))
+
+        dataset_save_path = self.save_path.joinpath(dataset)
+        dataset_save_path.mkdir(parents=True, exist_ok=True)
+
+        (
+            data.withColumns(
+                {
+                    "day": to_date(date_trunc("day", "dt")),
+                    "hour": hour("dt"),
+                }
+            )
+            .write.partitionBy(
+                "capital",
+                "day",
+                "hour",
+            )
+            .mode("append")
+            .parquet(str(dataset_save_path))
+        )
+
+    def update_ingestion_checkpoint(self, dt: str):
+        path = Path(self.base_path, "checkpoints")
+
+        path.mkdir(parents=True, exist_ok=True)
+
+        print("Updating ingestion checkpoint")
+        with open(path.joinpath(f"ingestion_checkpoint.json"), "w") as f:
+            dump({"last_ingestion_at": dt}, f)

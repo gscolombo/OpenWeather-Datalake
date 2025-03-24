@@ -35,20 +35,12 @@ def request_data(capital: str):
 
 
 def save_data(data: dict, capital: str, root: str | Path):
-    now = datetime.now().strftime("%Y%m%d_%H%M%S")
-    save_path = Path(root, "bronze", f"capital={capital}")
+    now = datetime.now()
+    save_path = Path(root, "bronze", f"capital={capital}", f"date={now.date()}")
 
     save_path.mkdir(parents=True, exist_ok=True)
 
-    file_name = f"{capital}_{now}.json"
+    dt = now.isoformat(sep="T", timespec="seconds").replace(":", "-")
+    file_name = f"{capital}_{dt}.json"
     with open(save_path.joinpath(file_name), "w") as f:
         dump(data, f)
-
-
-def update_ingestion_checkpoint(dt: datetime | str, root: str | Path):
-    path = Path(root, "checkpoints")
-
-    path.mkdir(parents=True, exist_ok=True)
-
-    with open(path.joinpath(f"ingestion_checkpoint.json"), "w") as f:
-        dump({"last_ingestion_at": dt}, f)

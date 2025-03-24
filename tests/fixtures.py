@@ -1,5 +1,6 @@
 from pytest import fixture
 from pyspark.sql.types import *
+from datetime import date
 
 
 @fixture()
@@ -113,7 +114,6 @@ def sample_raw_data_Brasilia():
 def expected_climate_data_schema():
     return StructType(
         [
-            StructField("capital", StringType(), False),
             StructField("clouds", LongType(), True),
             StructField("dew_point", DoubleType(), True),
             StructField("dt", StringType(), True),
@@ -130,6 +130,9 @@ def expected_climate_data_schema():
             StructField("wind_gust", DoubleType(), True),
             StructField("rain_1h", DoubleType(), True),
             StructField("snow_1h", DoubleType(), True),
+            StructField("capital", StringType(), False),
+            StructField("day", DateType(), False),
+            StructField("hour", IntegerType(), False),
         ]
     )
 
@@ -138,12 +141,14 @@ def expected_climate_data_schema():
 def expected_weather_data_schema():
     return StructType(
         [
-            StructField("capital", StringType(), False),
             StructField("dt", StringType(), True),
             StructField("id", LongType(), True),
             StructField("main", StringType(), True),
             StructField("description", StringType(), True),
             StructField("icon", StringType(), True),
+            StructField("capital", StringType(), False),
+            StructField("day", DateType(), False),
+            StructField("hour", IntegerType(), False),
         ]
     )
 
@@ -152,7 +157,6 @@ def expected_weather_data_schema():
 def expected_alert_data_schema():
     return StructType(
         [
-            StructField("capital", StringType(), False),
             StructField("dt", StringType(), True),
             StructField("sender_name", StringType(), True),
             StructField("event", StringType(), True),
@@ -160,6 +164,9 @@ def expected_alert_data_schema():
             StructField("end", StringType(), True),
             StructField("description", StringType(), True),
             StructField("tags", StringType(), True),
+            StructField("capital", StringType(), False),
+            StructField("day", DateType(), False),
+            StructField("hour", IntegerType(), False),
         ]
     )
 
@@ -182,6 +189,8 @@ def expected_climate_data():
             "wind_speed": 4.12,
             "wind_deg": 90,
             "capital": "Manaus",
+            "day": date(2025, 3, 6),
+            "hour": 8,
         },
         {
             "dt": "2025-03-18 21:26:00",
@@ -201,6 +210,8 @@ def expected_climate_data():
             "rain_1h": 0.13,
             "snow_1h": 0.0,
             "capital": "Brasilia",
+            "day": date(2025, 3, 18),
+            "hour": 21,
         },
     ]
 
@@ -215,6 +226,8 @@ def expected_weather_data():
             "description": "algumas nuvens",
             "icon": "02d",
             "capital": "Manaus",
+            "day": date(2025, 3, 6),
+            "hour": 8,
         },
         {
             "dt": "2025-03-18 21:26:00",
@@ -223,6 +236,8 @@ def expected_weather_data():
             "description": "chuva leve",
             "icon": "10n",
             "capital": "Brasilia",
+            "day": date(2025, 3, 18),
+            "hour": 21,
         },
     ]
 
@@ -239,6 +254,8 @@ def expected_alert_data():
             "description": "INMET publica aviso iniciando em: 05/03/2025 09:45. Chuva entre 30 e 60 mm/h ou 50 e 100 mm/dia, ventos intensos (60-100 km/h). Risco de corte de energia el\u00e9trica,  queda de galhos de \u00e1rvores, alagamentos e de descargas el\u00e9tricas.",
             "tags": "Rain Storm",
             "capital": "Manaus",
+            "day": date(2025, 3, 6),
+            "hour": 8,
         },
         {
             "dt": "2025-03-06 08:58:13",
@@ -249,6 +266,8 @@ def expected_alert_data():
             "description": "INMET publica aviso iniciando em: 05/03/2025 09:45. Chuva entre 30 e 60 mm/h ou 50 e 100 mm/dia, ventos intensos (60-100 km/h). Risco de corte de energia el\u00e9trica,  queda de galhos de \u00e1rvores, alagamentos e de descargas el\u00e9tricas.",
             "tags": "Rain",
             "capital": "Manaus",
+            "day": date(2025, 3, 6),
+            "hour": 8,
         },
         {
             "dt": "2025-03-18 21:26:00",
@@ -259,6 +278,8 @@ def expected_alert_data():
             "description": "Baixa umidade publicada pelo INMET",
             "tags": "Dry",
             "capital": "Brasilia",
+            "day": date(2025, 3, 18),
+            "hour": 21,
         },
         {
             "dt": "2025-03-18 21:26:00",
@@ -269,5 +290,7 @@ def expected_alert_data():
             "description": "Seca Extrema publicada pelo INMET",
             "tags": "Drought",
             "capital": "Brasilia",
+            "day": date(2025, 3, 18),
+            "hour": 21,
         },
     ]
