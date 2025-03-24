@@ -19,7 +19,7 @@ def raw_data_processing():
 
     @task(retries=0)
     def get_last_raw_data():
-        dt = datetime.now().replace(second=0, microsecond=0).isoformat()
+        dt = datetime.now().replace(second=59, microsecond=0).isoformat()
 
         raw_data = processor.get_raw_data()
         processor.update_ingestion_checkpoint(dt)
